@@ -10,6 +10,7 @@ trait ShellProvider {
 case class Message(title:String, content:String, exception: Option[Throwable]) {
   def this(title:String, content:String) = this(title, content, None)
   def this(title:String, exception: Throwable) = this(title, "", Some(exception))
+  def this(title:String, exception: Option[Throwable]) = this(title, "", exception)
 
   def pushTitle(newTitle:String) = new Message(newTitle, s"${title} ${content}", exception)
 }

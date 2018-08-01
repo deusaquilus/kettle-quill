@@ -6,6 +6,8 @@ import com.github.choppythelumberjack.trivialgen.ext.DatabaseTypes.DatabaseType
 import org.eclipse.swt.SWT
 import org.eclipse.swt.widgets.{Tree, TreeItem}
 import org.pentaho.di.core.database.Database
+import org.pentaho.di.core.logging.LogChannelInterface
+import com.github.choppythelumberjack.kettlequill.EitherExtensions._
 
 object SchemaTreeExtractor {
   import scala.collection.JavaConversions._
@@ -26,7 +28,7 @@ object SchemaTreeExtractor {
   }
 }
 
-class SchemaTreeBuilder(databaseType: DatabaseType, db:Database) {
+class SchemaTreeBuilder(databaseType: DatabaseType, db:Database, log:LogChannelInterface) {
   private val DEFAULT:String = "<DEFAULT>"
   protected def pullFromResult[T](rs:ResultSet, extractor:ResultSet=>T, accum:Seq[T] = Seq()) =
     if (!rs.next()) accum.reverse
@@ -45,22 +47,27 @@ class SchemaTreeBuilder(databaseType: DatabaseType, db:Database) {
 
     catAndSchemaData.unwrap match {
       case Success(catAndSchema) => Right(catAndSchema)
-      case Failure(e) => Left(new Message("Could not retrieve schema", s"Error: ${e}"))
+      case Failure(e) => Left(new Message("Could not retrieve schema", Option(e)))
     }
 
   }
 
   def builder = {
     val resultOrError =
-      databasesAndSchemas.right.map(seq => {
-        seq
-          .groupBy({case (cat, schema) => cat}) // group by the catalog (i.e. db)
-          .map({case (k,kv) =>
+      databasesAndSchemas
+        .orDoSomething(msg => {
+          log.logBasic(s"Cannot retrieve datasource/schema: ${msg}")
+        })
+        .map(
+          _.groupBy({ case (cat, schema) => cat }) // group by the catalog (i.e. db)
+           .map({ case (k, kv) =>
             // remove empty schema-values from the list of schemas from the catalog
-            (k,kv.map(_._2).collect({ case Some(value) => value }))})
-      })
+            (k, kv.map(_._2).collect({ case Some(value) => value }))
+          })
+        )
 
-    resultOrError.right.map(
+
+    resultOrError.map(
       groupedSchemas => {
         (root:Tree) => {
           val selected = SchemaTreeExtractor.selectedNodes(root)

@@ -12,6 +12,7 @@ import org.eclipse.swt.events._
 import org.eclipse.swt.layout.{FormData, FormLayout}
 import org.eclipse.swt.widgets._
 import org.pentaho.di.core.Const
+import org.pentaho.di.core.logging.LogChannel
 import org.pentaho.di.core.util.Utils
 import org.pentaho.di.i18n.BaseMessages
 import org.pentaho.di.trans.{TransMeta, TransPreviewFactory}
@@ -21,9 +22,9 @@ import org.pentaho.di.ui.core.widget.TextVar
 import org.pentaho.di.ui.spoon.job.JobGraph
 import org.pentaho.di.ui.trans.dialog.TransPreviewProgressDialog
 import org.pentaho.di.ui.trans.step.BaseStepDialog
+
 import scala.util.{Right => RightEither}
 import scala.util.{Left => LeftEither}
-
 import scala.util.{Right => RightEither}
 import scala.util.{Left => LeftEither}
 
@@ -42,6 +43,9 @@ class QuillInputDialog (parent: Shell, in: Any, transMeta: TransMeta, sname: Str
   override def getShell: Shell = shell
   override def getWStepname: Text = wStepname
   override def getTransMeta: TransMeta = transMeta
+
+  override protected def getLog: LogChannel = this.log
+
   def meta:QuillInputMeta = in.asInstanceOf[QuillInputMeta]
 
   private var wlQuillPanel:Label = null
@@ -57,7 +61,6 @@ class QuillInputDialog (parent: Shell, in: Any, transMeta: TransMeta, sname: Str
   private var wLazyConversion:Button = null
   private var wlPosition:Label = null
   private var fdlPosition:FormData = null
-
   protected var parentDisplay:Display = null
 
   def open:String = {
@@ -199,6 +202,9 @@ class QuillInputDialog (parent: Shell, in: Any, transMeta: TransMeta, sname: Str
     }) if (!display.readAndDispatch) display.sleep
     return stepname
   }
+
+  override def addConnectionLine(parent: Composite, previous: Control, middle: Int, margin: Int): CCombo =
+    super.addConnectionLine(parent, previous, middle, margin)
 
   private def ok(): Unit = {
     if (Utils.isEmpty(wStepname.getText)) return

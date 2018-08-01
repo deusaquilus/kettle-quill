@@ -5,24 +5,29 @@ import com.github.choppythelumberjack.trivialgen.ext.DatabaseTypes.DatabaseType
 import org.eclipse.swt.SWT
 import org.eclipse.swt.custom.CCombo
 import org.eclipse.swt.events.{ModifyEvent, ModifyListener}
-import org.eclipse.swt.widgets.{MessageBox, Shell}
+import org.eclipse.swt.widgets.{Composite, Control, MessageBox, Shell}
 import org.pentaho.di.core.Const
 import org.pentaho.di.core.database.{Database, DatabaseMeta}
 import org.pentaho.di.trans.step.BaseStep
-import org.pentaho.di.ui.trans.step.BaseStepDialog
 import com.github.choppythelumberjack.kettlequill.util.MessageHelper._
 import com.github.choppythelumberjack.kettlequill.util.EventLambdaHelper._
 import com.github.choppythelumberjack.kettlequill.util._
+import org.pentaho.di.core.logging.LogChannel
+import org.pentaho.di.ui.trans.step.BaseStepDialog
 
 import scala.util.{Failure, Success, Try}
 
-trait WithDatabaseConnector { this: BaseStepDialog with HasMeta with HasChangeTracking with WithScriptPanel =>
+trait WithDatabaseConnector extends { this: HasMeta with HasChangeTracking with WithScriptPanel =>
   implicit def shellProvider:ShellProvider
 
   def getMiddlePct:Int
 
   def wConnection:CCombo = _wConnection
+  protected def getLog:LogChannel
   var _wConnection:CCombo = null
+  //protected var log:LogChannel
+
+  def addConnectionLine(parent: Composite, previous: Control, middle: Int, margin: Int): CCombo
 
   def databaseType:Either[Message, DatabaseType] = Try({
     for {
@@ -67,34 +72,26 @@ trait WithDatabaseConnector { this: BaseStepDialog with HasMeta with HasChangeTr
       //println("Running Datasource Modification Listener")
       markChangedInDialog(false) // for prompting if dialog is simply closed
       meta.setChanged()
-      val metaAndDatabaseTypeT = Try {
+      (
         for {
-          dm <- findDatabaseMeta.right
-          dt <- databaseType.right
-        } yield (dm, dt)
-      }
-
-      val metaAndDatabaseType =
-        metaAndDatabaseTypeT match {
-          case Success(v) => v
-          case Failure(e) => {
-            e.printStackTrace()
-            throw new RuntimeException(e)
-          }
-        }
-
-      metaAndDatabaseType match {
-        case Right((dm, dt)) => {
+          dm <- TryEither.fromEither(findDatabaseMeta)
+          dt <- TryEither.fromEither(databaseType)
+        } yield (
+            (dm, dt)
+          )
+        ).value match {
+        case Success(Right((dm, dt))) => {
           meta.databaseType = Some(dt)
           println(s"Database Type is now ${meta.databaseType}")
-          new SchemaTreeBuilder(dt, dm.toDatabase).builder match {
-            case Right(builder) => builder(tree)
-            case Left(msg) => MessageBoxHelper.error(msg)
+          // this is thworing a null pointer exception?
+          new SchemaTreeBuilder(dt, dm.toDatabase, getLog).builder match {
+            case Some(builder) => builder(tree)
+            case None => getLog.logBasic("Cannot rebuild schema tree because data source not available")
           }
           markSqlPaneDirty()
         }
-        case Left(msg) =>
-          MessageBoxHelper.error(msg.pushTitle("Could not update datasource"))
+        case Success(Left(msg)) => MessageBoxHelper.error(msg.pushTitle("Could not update datasource"))
+        case Failure(e) => MessageBoxHelper.error(Message("Exception Thrown during meta retrieval", e))
       }
     }
 
