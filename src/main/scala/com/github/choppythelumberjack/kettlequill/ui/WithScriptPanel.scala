@@ -1,6 +1,7 @@
 package com.github.choppythelumberjack.kettlequill.ui
 
 import com.github.choppythelumberjack.kettlequill.QuillInputMeta
+import com.github.choppythelumberjack.kettlequill.schemagen.SchemaCodegen
 import com.github.choppythelumberjack.kettlequill.util.LayoutUtil._
 import org.eclipse.swt.SWT
 import org.eclipse.swt.events._
@@ -9,15 +10,17 @@ import org.pentaho.di.core.{Const, Props}
 import org.pentaho.di.ui.core.widget.StyledTextComp
 import com.github.choppythelumberjack.kettlequill.util.EventLambdaHelper._
 import com.github.choppythelumberjack.kettlequill.util.QuillGenerator.{GenerationException, GenerationNotQuery, GenerationSuccess}
-import com.github.choppythelumberjack.kettlequill.util.{Message, QueryRegenerator, QuillGenerator}
+import com.github.choppythelumberjack.kettlequill.util.{Message, QueryRegenerator, QuillGenerator, TryEither}
 import com.github.choppythelumberjack.trivialgen.ext.DatabaseTypes.DatabaseType
 import org.eclipse.swt.custom.{CTabFolder, CTabItem, SashForm}
 import org.pentaho.di.trans.TransMeta
 import org.pentaho.di.ui.core.PropsUI
 import org.pentaho.di.ui.trans.steps.tableinput.SQLValuesHighlight
 import com.github.choppythelumberjack.kettlequill.util.OptionExtensions._
-import scala.util.{Right => RightEither}
-import scala.util.{Left => LeftEither}
+import org.pentaho.di.core.database.DatabaseMeta
+import com.github.choppythelumberjack.kettlequill.util.DatabaseMetaExtensions._
+
+import scala.util.{Try, Left => LeftEither, Right => RightEither}
 
 trait WithScriptPanel {
 
@@ -29,6 +32,7 @@ trait WithScriptPanel {
 
   def meta:QuillInputMeta
   def databaseType:Either[Message, DatabaseType]
+  protected def findDatabaseMeta: Either[Message, DatabaseMeta]
 
   protected val queryRegenerator = new QueryRegenerator()
 
@@ -79,7 +83,7 @@ trait WithScriptPanel {
     tabs.makeLayout(modifilers:_*)
 
     val quillTabSash = new SashForm(tabs, SWT.VERTICAL)
-    val quillTab = tabItem(tabs, "Script")
+    val quillTab = tabItem(tabs, "Quill Query")
     wQuillPanel = new StyledTextComp(
       transMeta,
       quillTabSash,
@@ -103,12 +107,34 @@ trait WithScriptPanel {
     quillTab.setControl(quillTabSash)
 
 
-    val schemaTab = tabItem(tabs, "Schema")
+    val schemaTab = tabItem(tabs, "Generated Schema")
     val schemaTabSash = new SashForm(tabs, SWT.HORIZONTAL)
 
 
 
     tree = new Tree(schemaTabSash, SWT.CHECK | SWT.BORDER | SWT.V_SCROLL | SWT.H_SCROLL)
+    // TODO Try this
+    //val t = new TreeItem(tree, SWT.None)
+    //t.setText(s"No Schemas Loaded")
+
+    tree.addListener(SWT.Selection, new Listener {
+      override def handleEvent(event: Event): Unit = {
+
+        // TODO Getting a connection here so use try-close monad
+        for {
+          dm <- TryEither.fromEither(findDatabaseMeta)
+          database <- TryEither.fromTry(Try(dm.toDatabase))
+          // The initialize the codegen
+        } yield ()
+
+
+
+
+
+
+      }
+    })
+
     //(1 to 10).foreach(i => {val t = new TreeItem(tree, SWT.None); t.setText(s"Tree Item ${i}")})
 
     val schemasComp = new StyledTextComp(

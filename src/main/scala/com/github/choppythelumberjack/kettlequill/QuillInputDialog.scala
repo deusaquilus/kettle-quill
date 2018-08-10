@@ -48,7 +48,6 @@ class QuillInputDialog (parent: Shell, in: Any, transMeta: TransMeta, sname: Str
 
   def meta:QuillInputMeta = in.asInstanceOf[QuillInputMeta]
 
-  private var wlQuillPanel:Label = null
   private var wlDatefrom:Label = null
   private var wDatefrom:CCombo = null
   private var fdlDatefro:FormData = null
@@ -148,10 +147,6 @@ class QuillInputDialog (parent: Shell, in: Any, transMeta: TransMeta, sname: Str
     wLazyConversion.addSelectionListener((e:SelectionEvent) => { meta.setChanged(); setSQLToolTip() })
     wlPosition = new Label(shell, SWT.NONE).look(props)
     wlPosition.makeLayout(Left(0,0),Right(100,0),BottomOn(wLazyConversion,-margin))
-
-    // Table line...
-    wlQuillPanel = new Label(shell, SWT.NONE).withText("TID.SQL"@>).look(props)
-    wlQuillPanel.makeLayout(Left(0,0),TopOn(wConnection,margin*2))
 
     renderScriptPanel(
       transMeta, shell, props, lsMod,

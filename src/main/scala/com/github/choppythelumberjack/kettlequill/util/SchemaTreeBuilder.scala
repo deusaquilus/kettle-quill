@@ -19,17 +19,21 @@ object SchemaTreeExtractor {
       .map({case (catItem, schemItem) => (catItem, schemItem.filter(_.getChecked)) }) // filter for selected nodes in the schemas
       .map({case (catItem, schemItem) => // get the data inside and cast to correct type
         (
-          catItem.getData.asInstanceOf[Option[String]],
-          schemItem.map(_.asInstanceOf[Option[String]])
+          catItem.getData.asInstanceOf[String],
+          schemItem.map(_.asInstanceOf[String])
         )
       })
       // map to only non-null schema values
-      .map({case (catItem, schemItem) => (catItem, schemItem.collect({case Some(value) => value}))})
+      .map({case (catItem, schemItem) => (catItem, schemItem)})
   }
 }
 
+object SchemaTreeBuilder{
+  val ALL_SCHEMAS = "<ALL>"
+}
+
 class SchemaTreeBuilder(databaseType: DatabaseType, db:Database, log:LogChannelInterface) {
-  private val DEFAULT:String = "<DEFAULT>"
+
   protected def pullFromResult[T](rs:ResultSet, extractor:ResultSet=>T, accum:Seq[T] = Seq()) =
     if (!rs.next()) accum.reverse
     else extractor(rs) +: accum
@@ -38,11 +42,16 @@ class SchemaTreeBuilder(databaseType: DatabaseType, db:Database, log:LogChannelI
     import com.github.choppythelumberjack.tryclose._
     import com.github.choppythelumberjack.tryclose.JavaImplicits._
 
+    log.logBasic(s"Attempting to connect to: ${db.getDatabaseMeta.getName} for schema")
     val catAndSchemaData = for {
-      conn <- TryClose(db.getConnection) if (conn != null)
+      _ <- TryClose(db.normalConnect(null))
+      conn <- TryClose(db.getConnection) if ({
+        if (conn == null) log.logError(s"Cannot connect to db: ${db.getDatabaseMeta.getName}")
+        conn != null
+      })
       results <- TryClose(conn.getMetaData().getTables(null, null, null, null))
       catAndSchema <- TryClose.wrap(pullFromResult(results,
-        r => (Some(r.getString("TABLE_CAT")), Some(r.getString("TABLE_SCHEM")))))
+        r => (Option(r.getString("TABLE_CAT")), Option(r.getString("TABLE_SCHEM")))))
     } yield (catAndSchema)
 
     catAndSchemaData.unwrap match {
@@ -62,8 +71,11 @@ class SchemaTreeBuilder(databaseType: DatabaseType, db:Database, log:LogChannelI
           _.groupBy({ case (cat, schema) => cat }) // group by the catalog (i.e. db)
            .map({ case (k, kv) =>
             // remove empty schema-values from the list of schemas from the catalog
+            log.logBasic(s"Schema ${(k, kv)}")
             (k, kv.map(_._2).collect({ case Some(value) => value }))
           })
+          .collect({case (Some(cat), schemas) => (cat,schemas)})
+          .map({case (cat, schemas) => (cat,SchemaTreeBuilder.ALL_SCHEMAS +: schemas)})
         )
 
 
@@ -75,20 +87,30 @@ class SchemaTreeBuilder(databaseType: DatabaseType, db:Database, log:LogChannelI
           root.clearAll(true)
           root.deselectAll()
 
-          def catTreeItem(content:Option[String], parent:TreeItem) =
-            {val t = new TreeItem(parent, SWT.None); t.setText(content.getOrElse(DEFAULT)); t.setData(content);
-              t.setChecked(selected.exists({case (cat, _) => cat == content})); t}
-          def schemaTreeItem(content:Option[String], parent:Tree) =
-            {val t = new TreeItem(parent, SWT.None); t.setText(content.getOrElse(DEFAULT)); t.setData(content);
+          def catTreeItem(content:String, parent:TreeItem) = {
+            val t = new TreeItem(parent, SWT.None);
+            t.setText(content);
+            t.setData(content);
+
+            t.setChecked(selected.exists({case (cat, _) => cat == content})); t
+          }
+          def schemaTreeItem(content:String, parent:Tree) = {
+            val t = new TreeItem(parent, SWT.None);
+            t.setText(content);
+            t.setData(content);
+
               t.setChecked(
                 // check that the list of previously-selected items contains the catalog/schema combo
                 selected.exists({case (cat, schem) =>
                   parent.getData == cat && content.exists(c => schem.contains(c))})
-              ); t}
+              ); t
+          }
+
+          println(s"Grouped Schemas: ${groupedSchemas.toMap}")
 
           groupedSchemas.foreach({case (cat, schemas) => {
             val catItem = schemaTreeItem(cat, root)
-            schemas.foreach(schema => catTreeItem(Some(schema), catItem))
+            schemas.foreach(schema => catTreeItem(schema, catItem))
           }})
         }
       }

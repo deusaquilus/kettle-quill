@@ -14,6 +14,7 @@ import com.github.choppythelumberjack.kettlequill.util.EventLambdaHelper._
 import com.github.choppythelumberjack.kettlequill.util._
 import org.pentaho.di.core.logging.LogChannel
 import org.pentaho.di.ui.trans.step.BaseStepDialog
+import DatabaseMetaExtensions._
 
 import scala.util.{Failure, Success, Try}
 
@@ -41,14 +42,12 @@ trait WithDatabaseConnector extends { this: HasMeta with HasChangeTracking with 
 
   protected def findDatabaseMeta =
     Option(getTransMeta.findDatabase(wConnection.getText)) match {
-      case Some(meta) => Right(meta)
+      case Some(meta) => {
+        getLog.logBasic(s"Found meta for connection: ${wConnection.getText}")
+        Right(meta)
+      }
       case None => Left(new Message("Could not get Meta for Connection", s"Error: ${wConnection.getText}"))
     }
-
-  implicit class DatabaseMetaExt(databaseMeta:DatabaseMeta) {
-    def toDatabase =
-      new Database(BaseStepDialog.loggingObject, databaseMeta)
-  }
 
   def getShell:org.eclipse.swt.widgets.Shell
   def getWStepname:org.eclipse.swt.widgets.Text
@@ -85,8 +84,12 @@ trait WithDatabaseConnector extends { this: HasMeta with HasChangeTracking with 
           println(s"Database Type is now ${meta.databaseType}")
           // this is thworing a null pointer exception?
           new SchemaTreeBuilder(dt, dm.toDatabase, getLog).builder match {
-            case Some(builder) => builder(tree)
-            case None => getLog.logBasic("Cannot rebuild schema tree because data source not available")
+            case Some(builder) => {
+              builder(tree)
+            }
+            case None => {
+              getLog.logBasic("Cannot rebuild schema tree because data source not available")
+            }
           }
           markSqlPaneDirty()
         }
