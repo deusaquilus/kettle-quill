@@ -69,7 +69,12 @@ trait WithScriptPanel {
     meta.quillQuery = Some(wQuillPanel.getText)
     if (meta.quillQuery.isDefined && meta.databaseType.isDefined) {
       println("Enter Update Section")
-      queryRegenerator.markDirty(meta.quillQuery.get, meta.databaseType.get, System.currentTimeMillis())
+      queryRegenerator.markDirty(
+        meta.schemas,
+        meta.quillQuery.get,
+        meta.databaseType.get,
+        System.currentTimeMillis()
+      )
     }
   }
 
@@ -139,9 +144,23 @@ trait WithScriptPanel {
           } yield (code)
 
         codegenResult.value match {
-          case Success(RightEither(code)) => schemasComp.setText(code)
-          case Success(LeftEither(msg)) => getLog.logBasic(msg.string)
-          case Failure(value) => getLog.logError("Error Generating Code", value)
+          case Success(RightEither(code)) => {
+            schemasComp.setText(code)
+            meta.schemas = code
+            markSqlPaneDirty()
+          }
+          case Success(LeftEither(msg)) => {
+            getLog.logBasic(msg.string)
+            schemasComp.setText("")
+            meta.schemas = ""
+            markSqlPaneDirty()
+          }
+          case Failure(value) => {
+            getLog.logError("Error Generating Code", value)
+            schemasComp.setText("")
+            meta.schemas = ""
+            markSqlPaneDirty()
+          }
         }
       }
     })
@@ -200,6 +219,7 @@ trait WithScriptPanel {
   }
 
   def quillQuery:Option[String] = Option(wQuillPanel.getText)
+  def quillSchemas:String = Option(meta.schemas).getOrElse("")
 
   // TODO Should not be all or none, should have an applicative functor
   def generateSqlManually = {
@@ -210,7 +230,7 @@ trait WithScriptPanel {
       quillQuery <- quillQuery.toEither(Message("Cannot Evaluate Query", "Quill Query is not Defined")).right
       databaseType <- databaseType.right
       queryOrError <- {
-        QuillGenerator(quillQuery, databaseType) match {
+        QuillGenerator(QuillCode(quillQuery, quillSchemas), databaseType) match {
           case GenerationSuccess(sql, tpe) =>
             RightE(QueryAndType(sql, tpe))
           case GenerationNotQuery(tpe:String) =>

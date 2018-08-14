@@ -13,20 +13,25 @@ import monix.execution.Scheduler.Implicits.global
 
 import scala.concurrent.Future
 
+case class QuillCode(schemas:String, query:String)
+object QuillCode {
+  def EMPTY = QuillCode("", "")
+}
+
 class QueryRegenerator {
-  var currentQuill:AtomicReference[String] = new AtomicReference[String](null)
+  var currentQuill:AtomicReference[QuillCode] = new AtomicReference[QuillCode](QuillCode.EMPTY)
   var currDatabaseType:AtomicReference[DatabaseType] = new AtomicReference[DatabaseType](null)
 
-  var futureQuill:AtomicReference[String] = new AtomicReference[String](null)
+  var futureQuill:AtomicReference[QuillCode] = new AtomicReference[QuillCode](QuillCode.EMPTY)
   var futureDatabaseType:AtomicReference[DatabaseType] = new AtomicReference[DatabaseType](null)
   var lastUpdate:AtomicLong = new AtomicLong(0)
 
   var task:AtomicReference[Option[CancelableFuture[Unit]]] = new AtomicReference[Option[CancelableFuture[Unit]]](None)
 
-  def markDirty(sql:String, databaseType:DatabaseType, time:Long):Unit = {
+  def markDirty(sql:String, schemas:String, databaseType:DatabaseType, time:Long):Unit = {
     //println("Adding Update Task")
     this.synchronized {
-      futureQuill.set(sql)
+      futureQuill.set(QuillCode(sql, schemas))
       futureDatabaseType.set(databaseType)
       lastUpdate.set(time)
     }
@@ -42,7 +47,7 @@ class QueryRegenerator {
     //println("Date Diff Passed")
 
     this.synchronized {
-      if (nullOrEmpty(currentQuill.get) && nullOrEmpty(futureQuill.get)) {
+      if (nullOrEmpty(currentQuill.get.query) && nullOrEmpty(futureQuill.get.query) ) {
         callback("-- Enter a Query")
         return
       }

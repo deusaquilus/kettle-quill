@@ -13,13 +13,15 @@ object QuillGenerator {
 
     // TODO Is MirrorSqlDialect a valid thing that you can use?
 
-  def makeScript(quillQuery:String) =
+  def makeScript(quillCode: QuillCode) =
 s"""
 import io.getquill._
 val ctx = new MirrorContext(MySQLDialect, UpperCase)
 import ctx._
 
-${quillQuery}
+${quillCode.schemas}
+
+${quillCode.query}
 """
 
 
@@ -30,7 +32,7 @@ ${quillQuery}
   case class GenerationNotQuery(actualType:String) extends QuillGeneratorStatus
 
 
-  def apply(quillQuery:String, databaseType:DatabaseType):QuillGeneratorStatus = {
+  def apply(quillQuery:QuillCode, databaseType:DatabaseType):QuillGeneratorStatus = {
     //TODO Choose namine strategy based on database
     //  -all lowercase for postgres
     //  -all upercase for mysql
@@ -42,6 +44,7 @@ ${quillQuery}
 
     val script = makeScript(quillQuery)
 
+    println("************* Created Script *************\n"+script)
 
     import scala.reflect.runtime.universe._
     import scala.tools.reflect.ToolBox

@@ -1,7 +1,7 @@
 package com.github.choppythelumberjack.kettlequill.schemagen
 
 import com.github.choppythelumberjack.kettlequill.util.{SchemaTreeBuilder, SchemaTreeExtractor}
-import com.github.choppythelumberjack.trivialgen.{ConnectionMaker, PackagingStrategy, TrivialSnakeCaseNames}
+import com.github.choppythelumberjack.trivialgen._
 import com.github.choppythelumberjack.trivialgen.ext.TrivialGen
 import com.github.choppythelumberjack.trivialgen.gen.CodeGeneratorConfig
 import com.github.choppythelumberjack.trivialgen.model.TableSchema
@@ -36,7 +36,11 @@ object SchemaCodegen {
 
     // Don't need to pass db credentials into generator because we are creating the connection maker from the pentaho Database object
     val gen = new TrivialGen(CodeGeneratorConfig("", "", ""), "gen") {
-      override def packagingStrategy: PackagingStrategy = PackagingStrategy.ByPackageObject.Simple()
+      override def packagingStrategy: PackagingStrategy =
+        PackagingStrategy.ByPackageObject.Simple().copy(
+          packageNamingStrategyForQuerySchemas = SimpleObjectByNamespace("", _.table.namespace),
+          packageNamingStrategyForCaseClasses = SimpleObjectByNamespace("", _.table.namespace)
+        )
 
       override def connectionMaker(cs: CodeGeneratorConfig): ConnectionMaker = () => {
         db.normalConnect(null)

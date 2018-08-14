@@ -77,6 +77,8 @@ class QuillInputMeta extends BaseStepMeta with StepMetaInterface {
   var databaseType:Option[DatabaseType] = None
   var quillQuery:Option[String] = None
 
+  var schemas:String = ""
+
   /**
     * @return Returns true if the step should be run per row
     */
