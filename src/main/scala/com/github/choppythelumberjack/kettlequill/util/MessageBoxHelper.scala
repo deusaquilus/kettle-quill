@@ -13,6 +13,7 @@ case class Message(title:String, content:String, exception: Option[Throwable]) {
   def this(title:String, exception: Option[Throwable]) = this(title, "", exception)
 
   def pushTitle(newTitle:String) = new Message(newTitle, s"${title} ${content}", exception)
+  def string = s"${title}: ${content}.${exception.map(" "+_.toString).getOrElse("")}"
 }
 
 object Message {

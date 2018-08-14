@@ -20,7 +20,7 @@ object SchemaTreeExtractor {
       .map({case (catItem, schemItem) => // get the data inside and cast to correct type
         (
           catItem.getData.asInstanceOf[String],
-          schemItem.map(_.asInstanceOf[String])
+          schemItem.map(_.getData.asInstanceOf[String])
         )
       })
       // map to only non-null schema values

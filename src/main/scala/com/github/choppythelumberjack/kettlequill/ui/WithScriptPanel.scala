@@ -10,7 +10,7 @@ import org.pentaho.di.core.{Const, Props}
 import org.pentaho.di.ui.core.widget.StyledTextComp
 import com.github.choppythelumberjack.kettlequill.util.EventLambdaHelper._
 import com.github.choppythelumberjack.kettlequill.util.QuillGenerator.{GenerationException, GenerationNotQuery, GenerationSuccess}
-import com.github.choppythelumberjack.kettlequill.util.{Message, QueryRegenerator, QuillGenerator, TryEither}
+import com.github.choppythelumberjack.kettlequill.util.{OptionExtensions => _, _}
 import com.github.choppythelumberjack.trivialgen.ext.DatabaseTypes.DatabaseType
 import org.eclipse.swt.custom.{CTabFolder, CTabItem, SashForm}
 import org.pentaho.di.trans.TransMeta
@@ -19,6 +19,7 @@ import org.pentaho.di.ui.trans.steps.tableinput.SQLValuesHighlight
 import com.github.choppythelumberjack.kettlequill.util.OptionExtensions._
 import org.pentaho.di.core.database.DatabaseMeta
 import com.github.choppythelumberjack.kettlequill.util.DatabaseMetaExtensions._
+import org.pentaho.di.core.logging.LogChannel
 
 import scala.util.{Try, Left => LeftEither, Right => RightEither}
 
@@ -29,6 +30,7 @@ trait WithScriptPanel {
   protected var sqlGenComp:StyledTextComp = null
   protected var parentDisplay:Display
   protected var tree:Tree = null
+  protected def getLog:LogChannel
 
   def meta:QuillInputMeta
   def databaseType:Either[Message, DatabaseType]
@@ -117,26 +119,6 @@ trait WithScriptPanel {
     //val t = new TreeItem(tree, SWT.None)
     //t.setText(s"No Schemas Loaded")
 
-    tree.addListener(SWT.Selection, new Listener {
-      override def handleEvent(event: Event): Unit = {
-
-        // TODO Getting a connection here so use try-close monad
-        for {
-          dm <- TryEither.fromEither(findDatabaseMeta)
-          database <- TryEither.fromTry(Try(dm.toDatabase))
-          // The initialize the codegen
-        } yield ()
-
-
-
-
-
-
-      }
-    })
-
-    //(1 to 10).foreach(i => {val t = new TreeItem(tree, SWT.None); t.setText(s"Tree Item ${i}")})
-
     val schemasComp = new StyledTextComp(
       transMeta,
       schemaTabSash,
@@ -144,6 +126,25 @@ trait WithScriptPanel {
     ).look(props,Props.WIDGET_STYLE_FIXED)
     //schemaTab.setControl(wQuillPanel)
 
+    tree.addListener(SWT.Selection, new Listener {
+      override def handleEvent(event: Event): Unit = {
+        import scala.util.{Success, Failure}
+
+        // TODO Getting a connection here so use try-close monad
+        val codegenResult =
+          for {
+            dm       <- TryEither.fromEither(findDatabaseMeta)
+            database <- TryEither.pure(dm.toDatabase)
+            code     <- TryEither.pure(SchemaCodegen(database, tree))
+          } yield (code)
+
+        codegenResult.value match {
+          case Success(RightEither(code)) => schemasComp.setText(code)
+          case Success(LeftEither(msg)) => getLog.logBasic(msg.string)
+          case Failure(value) => getLog.logError("Error Generating Code", value)
+        }
+      }
+    })
 
     schemaTabSash.setWeights(Array(1,2))
     schemaTab.setControl(schemaTabSash)
